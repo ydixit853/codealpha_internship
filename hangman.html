@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Hangman — by Yash Dixit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0e0f14; --surface: #16181f; --card: #1c1f2a; --border: #2a2d3a;
+      --teal: #00d4aa; --teal-dim: rgba(0,212,170,0.15);
+      --red: #ff4d4d;  --red-dim: rgba(255,77,77,0.12);
+      --yellow: #ffd166; --text: #e8eaf0; --muted: #6b7280;
+      --mono: 'Space Mono', monospace; --sans: 'Inter', sans-serif;
+    }
+    body {
+      background: var(--bg); min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-family: var(--sans); color: var(--text); padding: 24px 16px;
+    }
+    .page-title {
+      font-family: var(--mono); font-size: 12px; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 20px;
+    }
+    .page-title span { color: var(--teal); }
+
+    /* connection banner */
+    #conn-banner {
+      width: 100%; max-width: 720px; margin-bottom: 12px;
+      padding: 9px 16px; border-radius: 8px;
+      font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em;
+      display: flex; align-items: center; gap: 8px; transition: background 0.3s;
+    }
+    #conn-banner.ok   { background: rgba(0,212,170,0.08); border: 1px solid rgba(0,212,170,0.3); color: var(--teal); }
+    #conn-banner.err  { background: rgba(255,77,77,0.08);  border: 1px solid rgba(255,77,77,0.3);  color: var(--red);  }
+    #conn-banner.wait { background: rgba(107,114,128,0.08);border: 1px solid var(--border);        color: var(--muted);}
+    #conn-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+    /* main card */
+    #game-wrap { position: relative; width: 100%; max-width: 720px; }
+    #game { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+
+    /* header */
+    #header { background: var(--card); border-bottom: 1px solid var(--border); padding: 13px 24px; display: flex; align-items: center; justify-content: space-between; }
+    #header-title { font-family: var(--mono); font-size: 13px; color: var(--teal); letter-spacing: 0.1em; }
+    #header-right { display: flex; align-items: center; gap: 10px; }
+    #tries-badge { font-family: var(--mono); font-size: 12px; color: var(--red); background: var(--red-dim); border: 1px solid rgba(255,77,77,0.4); border-radius: 6px; padding: 4px 10px; letter-spacing: 0.05em; }
+    #new-btn { font-family: var(--mono); font-size: 12px; background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 5px 13px; cursor: pointer; letter-spacing: 0.05em; transition: color 0.2s, border-color 0.2s; }
+    #new-btn:hover { color: var(--teal); border-color: var(--teal); }
+
+    /* body layout */
+    #body { display: flex; }
+
+    /* left panel */
+    #left-panel { width: 220px; min-width: 220px; border-right: 1px solid var(--border); padding: 28px 20px 24px; display: flex; flex-direction: column; align-items: center; }
+    #scaffold-wrap { width: 170px; height: 210px; }
+    #scaffold-svg { width: 100%; height: 100%; }
+    .h-part { transition: opacity 0.4s ease; }
+    #lives-row { display: flex; gap: 7px; margin-top: 18px; }
+    .life-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--teal); transition: background 0.3s, transform 0.3s; }
+    .life-dot.lost { background: var(--red); transform: scale(0.7); }
+    #lives-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 8px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+    /* right panel */
+    #right-panel { flex: 1; padding: 26px 24px 20px; display: flex; flex-direction: column; gap: 22px; }
+    .section-label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 12px; }
+
+    /* word */
+    #word-display { display: flex; gap: 10px; flex-wrap: wrap; }
+    .letter-slot { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    .letter-char { font-family: var(--mono); font-size: 30px; font-weight: 700; min-width: 28px; min-height: 36px; line-height: 1; text-align: center; color: var(--teal); }
+    .letter-char.wrong-reveal { color: var(--red); }
+    .letter-char.reveal { animation: popIn 0.3s ease; }
+    @keyframes popIn { 0% { transform: scale(0.4) translateY(-10px); opacity: 0; } 65% { transform: scale(1.18); } 100% { transform: scale(1) translateY(0); opacity: 1; } }
+    .letter-under { width: 28px; height: 2px; background: var(--border); border-radius: 1px; transition: background 0.3s; }
+    .letter-under.active { background: rgba(0,212,170,0.4); }
+
+    /* pills */
+    #guessed-pills { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; }
+    .guessed-pill { font-family: var(--mono); font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 5px; letter-spacing: 0.04em; }
+    .pill-correct { color: var(--teal); background: rgba(0,212,170,0.1); border: 1px solid rgba(0,212,170,0.3); }
+    .pill-wrong   { color: var(--red);  background: rgba(255,77,77,0.08); border: 1px solid rgba(255,77,77,0.25); }
+
+    /* keyboard */
+    #keyboard { display: flex; flex-direction: column; gap: 5px; }
+    .kb-row { display: flex; gap: 5px; }
+    .kb-key { font-family: var(--mono); font-size: 13px; font-weight: 700; width: 34px; height: 36px; border-radius: 6px; background: var(--card); border: 1px solid var(--border); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s; }
+    .kb-key:hover:not(.used) { background: var(--teal-dim); border-color: var(--teal); color: var(--teal); transform: translateY(-2px); }
+    .kb-key:active:not(.used) { transform: translateY(0); }
+    .kb-key.used-correct { background: rgba(0,212,170,0.1); border-color: rgba(0,212,170,0.3); color: var(--teal); cursor: default; opacity: 0.55; }
+    .kb-key.used-wrong   { background: rgba(255,77,77,0.07); border-color: rgba(255,77,77,0.2); color: var(--red); cursor: default; opacity: 0.45; text-decoration: line-through; }
+
+    /* footer */
+    #footer { background: var(--card); border-top: 1px solid var(--border); padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; }
+    #footer-credit { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.06em; }
+    #footer-credit span { color: var(--teal); }
+    #footer-hint { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.06em; }
+
+    /* loading */
+    #loading { display: none; position: absolute; inset: 0; border-radius: 16px; background: rgba(14,15,20,0.6); align-items: center; justify-content: center; z-index: 15; }
+    #loading.visible { display: flex; }
+    .spinner { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--teal); animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* overlay */
+    #status-overlay { display: none; position: absolute; inset: 0; background: rgba(14,15,20,0.94); border-radius: 16px; align-items: center; justify-content: center; flex-direction: column; gap: 14px; z-index: 20; }
+    #status-overlay.visible { display: flex; }
+    #status-icon { font-size: 60px; line-height: 1; }
+    #status-msg  { font-family: var(--mono); font-size: 24px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+    #status-word { font-family: var(--mono); font-size: 13px; color: var(--muted); letter-spacing: 0.06em; }
+    #status-score { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    #status-score span { color: var(--yellow); }
+    #status-play-btn { margin-top: 10px; font-family: var(--mono); font-size: 13px; font-weight: 700; padding: 11px 32px; border-radius: 8px; cursor: pointer; letter-spacing: 0.1em; border: none; transition: transform 0.18s; }
+    #status-play-btn:hover { transform: scale(1.05); }
+    .win-btn  { background: var(--teal); color: #0d0e13; }
+    .lose-btn { background: var(--red);  color: #fff; }
+
+    @media (max-width: 540px) {
+      #left-panel { width: 160px; min-width: 160px; }
+      #scaffold-wrap { width: 130px; height: 165px; }
+      .letter-char { font-size: 22px; }
+      .kb-key { width: 28px; height: 30px; font-size: 11px; }
+      #right-panel { padding: 18px 14px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<p class="page-title">// <span>hangman.py</span> — connected to flask</p>
+
+<div id="conn-banner" class="wait">
+  <span id="conn-dot"></span>
+  <span id="conn-text">connecting to python server at localhost:5000 ...</span>
+</div>
+
+<div id="game-wrap">
+  <div id="game">
+
+    <div id="header">
+      <span id="header-title">HANGMAN</span>
+      <div id="header-right">
+        <span id="tries-badge">❌ <span id="tries-count">0</span> / 6</span>
+        <button id="new-btn" onclick="startGame()">new game</button>
+      </div>
+    </div>
+
+    <div id="body">
+      <div id="left-panel">
+        <div id="scaffold-wrap">
+          <svg id="scaffold-svg" viewBox="0 0 170 210" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="10"  y1="200" x2="160" y2="200" stroke="#2a2d3a" stroke-width="3" stroke-linecap="round"/>
+            <line x1="38"  y1="8"   x2="38"  y2="200" stroke="#2a2d3a" stroke-width="3" stroke-linecap="round"/>
+            <line x1="38"  y1="8"   x2="115" y2="8"   stroke="#2a2d3a" stroke-width="3" stroke-linecap="round"/>
+            <line x1="115" y1="8"   x2="115" y2="35"  stroke="#2a2d3a" stroke-width="2" stroke-dasharray="4 3" stroke-linecap="round"/>
+            <circle id="h-head" class="h-part" cx="115" cy="50"  r="15"  stroke="#ff4d4d" stroke-width="2.5" opacity="0"/>
+            <line   id="h-body" class="h-part" x1="115" y1="65"  x2="115" y2="118" stroke="#ff4d4d" stroke-width="2.5" stroke-linecap="round" opacity="0"/>
+            <line   id="h-larm" class="h-part" x1="115" y1="80"  x2="90"  y2="108" stroke="#ff4d4d" stroke-width="2.5" stroke-linecap="round" opacity="0"/>
+            <line   id="h-rarm" class="h-part" x1="115" y1="80"  x2="140" y2="108" stroke="#ff4d4d" stroke-width="2.5" stroke-linecap="round" opacity="0"/>
+            <line   id="h-lleg" class="h-part" x1="115" y1="118" x2="90"  y2="155" stroke="#ff4d4d" stroke-width="2.5" stroke-linecap="round" opacity="0"/>
+            <line   id="h-rleg" class="h-part" x1="115" y1="118" x2="140" y2="155" stroke="#ff4d4d" stroke-width="2.5" stroke-linecap="round" opacity="0"/>
+          </svg>
+        </div>
+        <div id="lives-row"></div>
+        <div id="lives-label">lives remaining</div>
+      </div>
+
+      <div id="right-panel">
+        <div>
+          <div class="section-label">// word</div>
+          <div id="word-display"></div>
+        </div>
+        <div>
+          <div class="section-label">// guessed letters</div>
+          <div id="guessed-pills"></div>
+        </div>
+        <div>
+          <div class="section-label">// keyboard</div>
+          <div id="keyboard"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="footer">
+      <span id="footer-credit">made by <span>yash dixit</span> · 14 june 2026</span>
+      <span id="footer-hint">type or click a letter to guess</span>
+    </div>
+  </div>
+
+  <div id="loading"><div class="spinner"></div></div>
+
+  <div id="status-overlay">
+    <div id="status-icon"></div>
+    <div id="status-msg"></div>
+    <div id="status-word"></div>
+    <div id="status-score"></div>
+    <button id="status-play-btn" onclick="startGame()">play again</button>
+  </div>
+</div>
+
+<script>
+  /* ── CONFIG: change port here if needed ── */
+  const API = "http://localhost:5000";
+
+  const BODY_PARTS = ["h-head","h-body","h-larm","h-rarm","h-lleg","h-rleg"];
+  const KB_ROWS = [
+    ["q","w","e","r","t","y","u","i","o","p"],
+    ["a","s","d","f","g","h","j","k","l"],
+    ["z","x","c","v","b","n","m"]
+  ];
+
+  let gameOver = false, wins = 0, losses = 0, prevGuessed = [];
+
+  /* ── banner ── */
+  function setBanner(status, msg) {
+    const b = document.getElementById("conn-banner");
+    b.className = status;
+    document.getElementById("conn-text").textContent = msg;
+  }
+
+  async function checkConnection() {
+    try {
+      const r = await fetch(`${API}/state`, { signal: AbortSignal.timeout(3000) });
+      if (r.ok) { setBanner("ok", "connected to python server at localhost:5000"); return true; }
+    } catch (_) {}
+    setBanner("err", "cannot reach python server — run:  pip install flask flask-cors   then:  python app.py");
+    return false;
+  }
+
+  /* ── api ── */
+  function showLoading(v) { document.getElementById("loading").classList.toggle("visible", v); }
+
+  async function apiFetch(path, method="GET", body=null) {
+    const opts = { method, headers: { "Content-Type": "application/json" } };
+    if (body) opts.body = JSON.stringify(body);
+    const r = await fetch(`${API}${path}`, opts);
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  }
+
+  /* ── start ── */
+  async function startGame() {
+    showLoading(true);
+    document.getElementById("status-overlay").classList.remove("visible");
+    gameOver = false; prevGuessed = [];
+    try {
+      updateUI(await apiFetch("/new","POST"));
+    } catch(e) {
+      setBanner("err","server error — is python app.py running?");
+    } finally { showLoading(false); }
+  }
+
+  /* ── guess ── */
+  async function guess(letter) {
+    if (gameOver) return;
+    const btn = document.getElementById("key-"+letter);
+    if (btn) { btn.classList.add("used"); btn.onclick = null; }
+    try {
+      updateUI(await apiFetch("/guess","POST",{letter}));
+    } catch(e) {
+      if (btn) { btn.classList.remove("used"); btn.onclick = ()=>guess(letter); }
+    }
+  }
+
+  /* ── update ui ── */
+  function updateUI(data) {
+    document.getElementById("tries-count").textContent = data.tries;
+    BODY_PARTS.forEach((id,i)=>{ document.getElementById(id).style.opacity = i<data.tries?"1":"0"; });
+    renderWord(data.display, data.guessed, data.word, data.lost);
+    renderGuessed(data.guessed, data.display);
+    renderKeyboard(data.guessed, data.display);
+    renderLives(data.tries);
+    prevGuessed = [...data.guessed];
+    if (data.won)  showResult(true,  data.word);
+    if (data.lost) showResult(false, data.word);
+  }
+
+  /* ── render word ── */
+  function renderWord(display, guessed, revealedWord, lost) {
+    const el = document.getElementById("word-display");
+    el.innerHTML = "";
+    display.forEach((ch,i)=>{
+      const slot = document.createElement("div"); slot.className="letter-slot";
+      const div  = document.createElement("div"); div.className="letter-char";
+      const isBlank = ch==="_";
+      if (!isBlank) {
+        div.textContent = ch;
+        if (!prevGuessed.includes(ch) && guessed.includes(ch)) div.classList.add("reveal");
+      } else if (lost && revealedWord) {
+        div.textContent = revealedWord[i]; div.classList.add("wrong-reveal");
+      }
+      const under = document.createElement("div");
+      under.className = "letter-under"+(!isBlank?" active":"");
+      slot.appendChild(div); slot.appendChild(under); el.appendChild(slot);
+    });
+  }
+
+  /* ── render guessed pills ── */
+  function renderGuessed(guessed, display) {
+    const el = document.getElementById("guessed-pills"); el.innerHTML="";
+    guessed.forEach(l=>{
+      const p = document.createElement("span");
+      p.className = "guessed-pill "+(display.some(ch=>ch===l)?"pill-correct":"pill-wrong");
+      p.textContent = l; el.appendChild(p);
+    });
+  }
+
+  /* ── render keyboard ── */
+  function renderKeyboard(guessed, display) {
+    const kb = document.getElementById("keyboard"); kb.innerHTML="";
+    KB_ROWS.forEach(row=>{
+      const r = document.createElement("div"); r.className="kb-row";
+      row.forEach(k=>{
+        const btn = document.createElement("button");
+        btn.className="kb-key"; btn.textContent=k; btn.id="key-"+k;
+        if (guessed.includes(k)) {
+          btn.classList.add("used", display.some(ch=>ch===k)?"used-correct":"used-wrong");
+        } else { btn.addEventListener("click",()=>guess(k)); }
+        r.appendChild(btn);
+      }); kb.appendChild(r);
+    });
+  }
+
+  /* ── render lives ── */
+  function renderLives(tries) {
+    const el = document.getElementById("lives-row"); el.innerHTML="";
+    for(let i=0;i<6;i++){
+      const d=document.createElement("div");
+      d.className="life-dot"+(i<tries?" lost":""); el.appendChild(d);
+    }
+  }
+
+  /* ── result overlay ── */
+  function showResult(won, word) {
+    gameOver=true; if(won) wins++; else losses++;
+    setTimeout(()=>{
+      document.getElementById("status-icon").textContent = won?"🎉":"💀";
+      document.getElementById("status-msg").textContent  = won?"you cracked it!":"game over!";
+      document.getElementById("status-msg").style.color  = won?"var(--teal)":"var(--red)";
+      document.getElementById("status-word").textContent = "the word was: "+word;
+      document.getElementById("status-score").innerHTML  = `wins <span>${wins}</span> · losses <span>${losses}</span>`;
+      document.getElementById("status-play-btn").className = won?"win-btn":"lose-btn";
+      document.getElementById("status-overlay").classList.add("visible");
+    },400);
+  }
+
+  /* ── physical keyboard ── */
+  document.addEventListener("keydown",e=>{
+    const k=e.key.toLowerCase();
+    if(/^[a-z]$/.test(k)&&!gameOver) guess(k);
+  });
+
+  /* ── boot ── */
+  (async()=>{
+    renderKeyboard([],[]);
+    const ok = await checkConnection();
+    if (ok) {
+      showLoading(true);
+      try { updateUI(await apiFetch("/state")); }
+      catch(_) { await startGame(); }
+      finally { showLoading(false); }
+    }
+  })();
+</script>
+</body>
+</html>
